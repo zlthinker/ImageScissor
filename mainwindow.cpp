@@ -1,5 +1,4 @@
 #include "mainwindow.h"
-#include <QtGui>
 
 
 ImageViewer::ImageViewer()
@@ -26,13 +25,13 @@ void ImageViewer::open()
     QString fileName = QFileDialog::getOpenFileName(this,
                                     tr("Open File"), QDir::currentPath());
     if (!fileName.isEmpty()) {
-        QImage image(fileName);
-        if (image.isNull()) {
+        qImage = QImage(fileName);
+        if (qImage.isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
                                      tr("Cannot load %1.").arg(fileName));
             return;
         }
-        imageLabel->setPixmap(QPixmap::fromImage(image));
+        imageLabel->setPixmap(QPixmap::fromImage(qImage));
         scaleFactor = 1.0;
 
         printAct->setEnabled(true);
@@ -42,8 +41,8 @@ void ImageViewer::open()
         if (!fitToWindowAct->isChecked())
             imageLabel->adjustSize();
 
-        imageMat = cv::imread(fileName.toStdString(), 1);
-        cv::cvtColor(imageMat, imageMat, CV_BGR2GRAY);
+        imageFile = fileName.toStdString();
+        imageMat = cv::imread(imageFile, 1);
     }
 }
 
@@ -198,4 +197,48 @@ void ImageViewer::adjustScrollBar(QScrollBar *scrollBar, double factor)
 {
     scrollBar->setValue(int(factor * scrollBar->value()
                             + ((factor - 1) * scrollBar->pageStep()/2)));
+}
+
+bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
+{
+    p.setX(x / scaleFactor + scrollArea->horizontalScrollBar()->value());
+    p.setY((y - menuBar()->size().height()) / scaleFactor + scrollArea->verticalScrollBar()->value());
+    if (p.x() > qImage.width() | p.y() > qImage.height())
+    {
+        return false;
+    }
+    return true;
+}
+
+void ImageViewer:: mousePressEvent(QMouseEvent *e)
+{
+
+    if(e->button() == Qt::LeftButton)
+    {
+        QPoint p1;
+        if (!mouseOnImage(p1, e->x(), e->y()))
+        {
+            return;
+        }
+        QPainter painter(&qImage);
+        QPen paintpen(Qt::red);
+        paintpen.setWidth(5);
+        painter.setPen(paintpen);
+        painter.drawPoint(p1);
+        if (!points.empty())
+        {
+            QPoint p0 = points.back();
+            paintpen.setWidth(0);
+            painter.setPen(paintpen);
+            painter.drawLine(p0, p1);;
+
+        }
+        points.push_back(p1);
+
+
+        imageLabel->setPixmap(QPixmap::fromImage(qImage));
+
+    }
+
+
 }

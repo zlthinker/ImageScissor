@@ -42,6 +42,8 @@
     ****************************************************************************/
 
 #include <QMainWindow>
+#include <QtGui>
+#include <QPainter>
 #include <QPrinter>
 #include "opencv2/opencv.hpp"
 
@@ -66,6 +68,7 @@ private slots:
     void normalSize();
     void fitToWindow();
     void about();
+    void mousePressEvent(QMouseEvent *e);
 
 private:
     void createActions();
@@ -73,6 +76,7 @@ private:
     void updateActions();
     void scaleImage(double factor);
     void adjustScrollBar(QScrollBar *scrollBar, double factor);
+    bool mouseOnImage(QPoint & pt, int x, int y);
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -96,7 +100,10 @@ private:
     QMenu *viewMenu;
     QMenu *helpMenu;
 
+    std::string imageFile;
     cv::Mat imageMat;
+    QImage qImage;
+    std::vector<QPoint> points;
 };
 
 #endif // MAINWINDOW_H
