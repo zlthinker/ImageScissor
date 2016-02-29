@@ -68,7 +68,8 @@ private slots:
     void normalSize();
     void fitToWindow();
     void about();
-    void mousePressEvent(QMouseEvent *e);
+    void save();
+    void deselect();
 
 private:
     void createActions();
@@ -76,7 +77,11 @@ private:
     void updateActions();
     void scaleImage(double factor);
     void adjustScrollBar(QScrollBar *scrollBar, double factor);
+    void mousePressEvent(QMouseEvent *e);
+    void mouseDoubleClickEvent(QMouseEvent * e);
     bool mouseOnImage(QPoint & pt, int x, int y);
+    void mouseMoveEvent(QMouseEvent * e);
+    void clearPainting();
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -88,6 +93,7 @@ private:
 
     QAction *openAct;
     QAction *printAct;
+    QAction *saveAct;
     QAction *exitAct;
     QAction *zoomInAct;
     QAction *zoomOutAct;
@@ -95,14 +101,20 @@ private:
     QAction *fitToWindowAct;
     QAction *aboutAct;
     QAction *aboutQtAct;
+    QAction *deselectAct;
 
     QMenu *fileMenu;
     QMenu *viewMenu;
+    QMenu *toolMenu;
     QMenu *helpMenu;
 
+    QString filename;
     std::string imageFile;
     cv::Mat imageMat;
-    QImage qImage;
+    QImage *qImage;
+    QImage *originImage;
+
+    QPainter *painter;
     std::vector<QPoint> points;
 };
 

@@ -25,17 +25,21 @@ void ImageViewer::open()
     QString fileName = QFileDialog::getOpenFileName(this,
                                     tr("Open File"), QDir::currentPath());
     if (!fileName.isEmpty()) {
-        qImage = QImage(fileName);
-        if (qImage.isNull()) {
+        qImage = new QImage(fileName);
+        originImage = new QImage(fileName);
+        if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
                                      tr("Cannot load %1.").arg(fileName));
             return;
         }
-        imageLabel->setPixmap(QPixmap::fromImage(qImage));
+        painter = new QPainter(qImage);
+        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
         scaleFactor = 1.0;
 
         printAct->setEnabled(true);
+        saveAct->setEnabled(true);
         fitToWindowAct->setEnabled(true);
+        deselectAct->setEnabled(true);
         updateActions();
 
         if (!fitToWindowAct->isChecked())
@@ -43,6 +47,10 @@ void ImageViewer::open()
 
         imageFile = fileName.toStdString();
         imageMat = cv::imread(imageFile, 1);
+
+        imageLabel->setMouseTracking(true);
+        scrollArea->setMouseTracking(true);
+        setMouseTracking(true);
     }
 }
 
@@ -52,15 +60,27 @@ void ImageViewer::print()
 #ifndef QT_NO_PRINTER
     QPrintDialog dialog(&printer, this);
     if (dialog.exec()) {
-        QPainter painter(&printer);
-        QRect rect = painter.viewport();
+        QRect rect = painter->viewport();
         QSize size = imageLabel->pixmap()->size();
         size.scale(rect.size(), Qt::KeepAspectRatio);
-        painter.setViewport(rect.x(), rect.y(), size.width(), size.height());
-        painter.setWindow(imageLabel->pixmap()->rect());
-        painter.drawPixmap(0, 0, *imageLabel->pixmap());
+        painter->setViewport(rect.x(), rect.y(), size.width(), size.height());
+        painter->setWindow(imageLabel->pixmap()->rect());
+        painter->drawPixmap(0, 0, *imageLabel->pixmap());
     }
 #endif
+}
+
+void ImageViewer::save()
+{
+    if (!qImage->isNull())
+    {
+        QString fileName = QFileDialog::getSaveFileName(this,
+                                        tr("Save as ..."), QDir::currentPath(), tr("Images (*.png *.xpm *.jpg)"));
+        if(!qImage->save(fileName))
+        {
+            qDebug() << "Fail to save " << fileName << "\n";
+        }
+    }
 }
 
 void ImageViewer::zoomIn()
@@ -117,6 +137,11 @@ void ImageViewer::createActions()
     printAct->setEnabled(false);
     connect(printAct, SIGNAL(triggered()), this, SLOT(print()));
 
+    saveAct = new QAction(tr("&Save..."), this);
+    saveAct->setShortcut(tr("Ctrl+S"));
+    saveAct->setEnabled(false);
+    connect(saveAct, SIGNAL(triggered()), this, SLOT(save()));
+
     exitAct = new QAction(tr("E&xit"), this);
     exitAct->setShortcut(tr("Ctrl+Q"));
     connect(exitAct, SIGNAL(triggered()), this, SLOT(close()));
@@ -132,7 +157,6 @@ void ImageViewer::createActions()
     connect(zoomOutAct, SIGNAL(triggered()), this, SLOT(zoomOut()));
 
     normalSizeAct = new QAction(tr("&Normal Size"), this);
-    normalSizeAct->setShortcut(tr("Ctrl+S"));
     normalSizeAct->setEnabled(false);
     connect(normalSizeAct, SIGNAL(triggered()), this, SLOT(normalSize()));
 
@@ -141,6 +165,11 @@ void ImageViewer::createActions()
     fitToWindowAct->setCheckable(true);
     fitToWindowAct->setShortcut(tr("Ctrl+F"));
     connect(fitToWindowAct, SIGNAL(triggered()), this, SLOT(fitToWindow()));
+
+    deselectAct = new QAction(tr("&Deselect"), this);
+    deselectAct->setShortcut(tr("Ctrl+D"));
+    deselectAct->setEnabled(false);
+    connect(deselectAct, SIGNAL(triggered()), this, SLOT(deselect()));
 
     aboutAct = new QAction(tr("&About"), this);
     connect(aboutAct, SIGNAL(triggered()), this, SLOT(about()));
@@ -154,6 +183,7 @@ void ImageViewer::createMenus()
     fileMenu = new QMenu(tr("&File"), this);
     fileMenu->addAction(openAct);
     fileMenu->addAction(printAct);
+    fileMenu->addAction(saveAct);
     fileMenu->addSeparator();
     fileMenu->addAction(exitAct);
 
@@ -164,12 +194,16 @@ void ImageViewer::createMenus()
     viewMenu->addSeparator();
     viewMenu->addAction(fitToWindowAct);
 
+    toolMenu = new QMenu(tr("&Tool"), this);
+    toolMenu->addAction(deselectAct);
+
     helpMenu = new QMenu(tr("&Help"), this);
     helpMenu->addAction(aboutAct);
     helpMenu->addAction(aboutQtAct);
 
     menuBar()->addMenu(fileMenu);
     menuBar()->addMenu(viewMenu);
+    menuBar()->addMenu(toolMenu);
     menuBar()->addMenu(helpMenu);
 }
 
@@ -203,7 +237,7 @@ bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
 {
     p.setX(x / scaleFactor + scrollArea->horizontalScrollBar()->value());
     p.setY((y - menuBar()->size().height()) / scaleFactor + scrollArea->verticalScrollBar()->value());
-    if (p.x() > qImage.width() | p.y() > qImage.height())
+    if (p.x() > qImage->width() | p.y() > qImage->height())
     {
         return false;
     }
@@ -220,25 +254,91 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
         {
             return;
         }
-        QPainter painter(&qImage);
         QPen paintpen(Qt::red);
         paintpen.setWidth(5);
-        painter.setPen(paintpen);
-        painter.drawPoint(p1);
+        painter->setPen(paintpen);
+        painter->drawPoint(p1);
         if (!points.empty())
         {
             QPoint p0 = points.back();
             paintpen.setWidth(0);
-            painter.setPen(paintpen);
-            painter.drawLine(p0, p1);;
+            painter->setPen(paintpen);
+            painter->drawLine(p0, p1);;
 
         }
         points.push_back(p1);
 
+        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+    }
+    else if(e->button() == Qt::RightButton)
+    {
+        if (points.size() > 2)
+        {
+            QPoint first = points[0];
+            QPoint last = points.back();
+            QPen paintpen(Qt::red);
+            paintpen.setWidth(0);
+            painter->setPen(paintpen);
+            painter->drawLine(first, last);
+            imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+            setMouseTracking(false);
+        }
+    }
+}
 
-        imageLabel->setPixmap(QPixmap::fromImage(qImage));
+void ImageViewer::mouseMoveEvent(QMouseEvent * e)
+{
+    qDebug() << "In mouseMoveEvent.";
+    if(points.size() > 0)
+    {
+        QPoint last = points.back();
+        QPoint p1;
+        if (!mouseOnImage(p1, e->x(), e->y()))
+        {
+            return;
+        }
+        qDebug() << "ex = " << e->x() << ", ey = " << e->y();
+        qDebug() << "x = " << p1.x() << ", y = " << p1.y();
+        clearPainting();
+
+        QPen paintpen(Qt::red);
+        paintpen.setWidth(5);
+        painter->setPen(paintpen);
+        for (int i = 0; i < points.size(); i++)
+        {
+            painter->drawPoint(points[i]);
+        }
+        paintpen.setWidth(0);
+        painter->setPen(paintpen);
+        for (int i = 0; i < points.size() - 1; i++)
+        {
+            painter->drawLine(points[i], points[i + 1]);
+        }
+        painter->drawLine(last, p1);
+        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+    }
+}
+
+void ImageViewer::mouseDoubleClickEvent(QMouseEvent * e)
+{
+    if ( e->button() == Qt::LeftButton )
+    {
 
     }
+}
 
+void ImageViewer::clearPainting()
+{
+    free(qImage);
+    free(painter);
+    qImage = new QImage(*originImage);
+    painter  = new QPainter(qImage);
+}
 
+void ImageViewer::deselect()
+{
+    clearPainting();
+    points.clear();
+    imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+    setMouseTracking(true);
 }
