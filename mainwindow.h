@@ -70,6 +70,7 @@ private slots:
     void about();
     void save();
     void deselect();
+    void undo();
 
 private:
     void createActions();
@@ -82,6 +83,8 @@ private:
     bool mouseOnImage(QPoint & pt, int x, int y);
     void mouseMoveEvent(QMouseEvent * e);
     void clearPainting();
+    void enableMouseTrack(bool enable);
+    void redraw();
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -102,17 +105,18 @@ private:
     QAction *aboutAct;
     QAction *aboutQtAct;
     QAction *deselectAct;
+    QAction *undoAct;
 
     QMenu *fileMenu;
     QMenu *viewMenu;
     QMenu *toolMenu;
     QMenu *helpMenu;
 
-    QString filename;
     std::string imageFile;
     cv::Mat imageMat;
     QImage *qImage;
     QImage *originImage;
+    bool closed = false;
 
     QPainter *painter;
     std::vector<QPoint> points;

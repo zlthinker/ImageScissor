@@ -18,6 +18,31 @@ ImageViewer::ImageViewer()
 
     setWindowTitle(tr("Image Viewer"));
     resize(500, 400);
+
+}
+
+void ImageViewer::enableMouseTrack(bool enable)
+{
+    imageLabel->setMouseTracking(enable);
+    scrollArea->setMouseTracking(enable);
+    setMouseTracking(enable);
+}
+
+void ImageViewer::redraw()
+{
+    QPen paintpen(Qt::red);
+    paintpen.setWidth(5);
+    painter->setPen(paintpen);
+    for (int i = 0; i < points.size(); i++)
+    {
+        painter->drawPoint(points[i]);
+    }
+    paintpen.setWidth(0);
+    painter->setPen(paintpen);
+    for (int i = 0; i < points.size() - 1; i++)
+    {
+        painter->drawLine(points[i], points[i + 1]);
+    }
 }
 
 void ImageViewer::open()
@@ -40,6 +65,7 @@ void ImageViewer::open()
         saveAct->setEnabled(true);
         fitToWindowAct->setEnabled(true);
         deselectAct->setEnabled(true);
+        undoAct->setEnabled(true);
         updateActions();
 
         if (!fitToWindowAct->isChecked())
@@ -48,9 +74,7 @@ void ImageViewer::open()
         imageFile = fileName.toStdString();
         imageMat = cv::imread(imageFile, 1);
 
-        imageLabel->setMouseTracking(true);
-        scrollArea->setMouseTracking(true);
-        setMouseTracking(true);
+        enableMouseTrack(true);
     }
 }
 
@@ -171,6 +195,11 @@ void ImageViewer::createActions()
     deselectAct->setEnabled(false);
     connect(deselectAct, SIGNAL(triggered()), this, SLOT(deselect()));
 
+    undoAct = new QAction(tr("&Undo"), this);
+    undoAct->setShortcut(tr("Ctrl+Z"));
+    undoAct->setEnabled(false);
+    connect(undoAct, SIGNAL(triggered()), this, SLOT(undo()));
+
     aboutAct = new QAction(tr("&About"), this);
     connect(aboutAct, SIGNAL(triggered()), this, SLOT(about()));
 
@@ -196,6 +225,7 @@ void ImageViewer::createMenus()
 
     toolMenu = new QMenu(tr("&Tool"), this);
     toolMenu->addAction(deselectAct);
+    toolMenu->addAction(undoAct);
 
     helpMenu = new QMenu(tr("&Help"), this);
     helpMenu->addAction(aboutAct);
@@ -235,8 +265,8 @@ void ImageViewer::adjustScrollBar(QScrollBar *scrollBar, double factor)
 
 bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
 {
-    p.setX(x / scaleFactor + scrollArea->horizontalScrollBar()->value());
-    p.setY((y - menuBar()->size().height()) / scaleFactor + scrollArea->verticalScrollBar()->value());
+    p.setX((x + scrollArea->horizontalScrollBar()->value()) / scaleFactor);
+    p.setY(((y - menuBar()->size().height()) + scrollArea->verticalScrollBar()->value()) / scaleFactor);
     if (p.x() > qImage->width() | p.y() > qImage->height())
     {
         return false;
@@ -246,6 +276,10 @@ bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
 
 void ImageViewer:: mousePressEvent(QMouseEvent *e)
 {
+    if(qImage == NULL || imageFile.length() == 0 || closed)
+    {
+        return;
+    }
 
     if(e->button() == Qt::LeftButton)
     {
@@ -274,21 +308,25 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
     {
         if (points.size() > 2)
         {
+            enableMouseTrack(false);
             QPoint first = points[0];
-            QPoint last = points.back();
-            QPen paintpen(Qt::red);
-            paintpen.setWidth(0);
-            painter->setPen(paintpen);
-            painter->drawLine(first, last);
+            points.push_back(first);
+            clearPainting();
+            redraw();
             imageLabel->setPixmap(QPixmap::fromImage(*qImage));
-            setMouseTracking(false);
+            closed = true;
         }
     }
 }
 
 void ImageViewer::mouseMoveEvent(QMouseEvent * e)
 {
+    if (closed)
+    {
+        return;
+    }
     qDebug() << "In mouseMoveEvent.";
+    qDebug() << "point size: " << points.size();
     if(points.size() > 0)
     {
         QPoint last = points.back();
@@ -300,20 +338,10 @@ void ImageViewer::mouseMoveEvent(QMouseEvent * e)
         qDebug() << "ex = " << e->x() << ", ey = " << e->y();
         qDebug() << "x = " << p1.x() << ", y = " << p1.y();
         clearPainting();
-
+        redraw();
         QPen paintpen(Qt::red);
-        paintpen.setWidth(5);
-        painter->setPen(paintpen);
-        for (int i = 0; i < points.size(); i++)
-        {
-            painter->drawPoint(points[i]);
-        }
         paintpen.setWidth(0);
         painter->setPen(paintpen);
-        for (int i = 0; i < points.size() - 1; i++)
-        {
-            painter->drawLine(points[i], points[i + 1]);
-        }
         painter->drawLine(last, p1);
         imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     }
@@ -340,5 +368,23 @@ void ImageViewer::deselect()
     clearPainting();
     points.clear();
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
-    setMouseTracking(true);
+    enableMouseTrack(true);
+    closed = false;
+}
+
+void ImageViewer::undo()
+{
+    if (!points.empty())
+    {
+        points.pop_back();
+    }
+    qDebug() << "point size: " << points.size();
+    clearPainting();
+    if (points.empty())
+    {
+        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+        return;
+    }
+    redraw();
+    imageLabel->setPixmap(QPixmap::fromImage(*qImage));
 }
