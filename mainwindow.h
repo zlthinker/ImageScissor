@@ -131,6 +131,7 @@ private:
     void redraw();
     cv::Mat qimage_to_mat_cpy(QImage const &img, int format);
     void drawPath(int x, int y);
+    void addContour(int x, int y, std::vector<QPoint> & cont);
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -166,9 +167,10 @@ private:
     bool closed = false;
     IplImage * iplImage;
     HeapNode * heapNode;
+    std::vector<QPoint> points;
 
     QPainter *painter;
-    std::vector<QPoint> points;
+    std::vector<std::vector<QPoint> > contour;
 };
 
 
