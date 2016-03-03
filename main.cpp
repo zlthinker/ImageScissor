@@ -1,5 +1,4 @@
 #include <QApplication>
-#include <opencv2/highgui/highgui.hpp>
 
 #include "mainwindow.h"
 

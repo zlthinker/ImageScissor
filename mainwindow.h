@@ -46,12 +46,56 @@
 #include <QPainter>
 #include <QPrinter>
 #include "opencv2/opencv.hpp"
+#include "fibheap.h"
 
 class QAction;
 class QLabel;
 class QMenu;
 class QScrollArea;
 class QScrollBar;
+
+
+class HeapNode : public FibHeapNode
+{
+    double LinkCost[8];
+    int State;
+    double Key;
+    HeapNode *PrevNode;
+    int column, row;
+
+
+public:
+
+      HeapNode() : FibHeapNode() { Key = 0; };
+
+      virtual void operator =(FibHeapNode& RHS);
+      virtual int  operator ==(FibHeapNode& RHS);
+      virtual int  operator <(FibHeapNode& RHS);
+
+      virtual void operator =(float NewKeyVal);
+      virtual void Print();
+      double GetKeyValue() { return Key; };
+      int GetRow(){return row;}
+      int GetColumn() {return column;}
+      int GetState() {return State;}
+      HeapNode * GetPreNode(){ return PrevNode;}
+      double GetLinkCost(int pos) { return LinkCost[pos]; }
+
+      void SetStateValue(int instate){ State = instate; }
+      void SetLinkCost(double *ls)
+      {
+          for (int i = 0; i < 8; i++)
+            LinkCost[i] = ls[i];
+      }
+      void SetLinkCost_i(int pos, double val)
+      {
+            LinkCost[pos] = val;
+      }
+      void SetKeyValue(double inkey) { Key = inkey; };
+      void SetRowColumn(int inrow, int incolumn){ row = inrow; column = incolumn;}
+      void SetPreNode(HeapNode * innode){ PrevNode = innode; }
+};
+
 
 class ImageViewer : public QMainWindow
 {
@@ -85,6 +129,8 @@ private:
     void clearPainting();
     void enableMouseTrack(bool enable);
     void redraw();
+    cv::Mat qimage_to_mat_cpy(QImage const &img, int format);
+    void drawPath(int x, int y);
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -116,10 +162,16 @@ private:
     cv::Mat imageMat;
     QImage *qImage;
     QImage *originImage;
+    QImage *confirmedImage;
     bool closed = false;
+    IplImage * iplImage;
+    HeapNode * heapNode;
 
     QPainter *painter;
     std::vector<QPoint> points;
 };
+
+
+int calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y);
 
 #endif // MAINWINDOW_H

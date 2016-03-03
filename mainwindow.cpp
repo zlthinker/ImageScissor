@@ -52,6 +52,7 @@ void ImageViewer::open()
     if (!fileName.isEmpty()) {
         qImage = new QImage(fileName);
         originImage = new QImage(fileName);
+        confirmedImage = new QImage(fileName);
         if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
                                      tr("Cannot load %1.").arg(fileName));
@@ -72,9 +73,25 @@ void ImageViewer::open()
             imageLabel->adjustSize();
 
         imageFile = fileName.toStdString();
-        imageMat = cv::imread(imageFile, 1);
+        imageMat = qimage_to_mat_cpy(*qImage, CV_8UC1);
+        for (int x = 0; x < imageMat.cols; x++)
+        {
+            for (int y = 0; y < imageMat.rows; y++)
+            {
+                cv::Vec3b intensity = imageMat.at<cv::Vec3b>(y, x);
+//                qDebug() << x << ", " << y << ": " << intensity[0] << ", " << intensity[1] << ", " << intensity[2];
+            }
+        }
 
         enableMouseTrack(true);
+
+        iplImage = cvLoadImage(imageFile.c_str(), CV_LOAD_IMAGE_GRAYSCALE);
+        heapNode = new HeapNode[imageMat.rows * imageMat.cols + 1];
+        if (!heapNode)
+        {
+            qDebug() << "Fail to alloct memory to heapnode.";
+            return;
+        }
     }
 }
 
@@ -284,23 +301,32 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
     if(e->button() == Qt::LeftButton)
     {
         QPoint p1;
+
         if (!mouseOnImage(p1, e->x(), e->y()))
         {
+            qDebug() << "press at " << p1.x() << ", " << p1.y();
             return;
         }
         QPen paintpen(Qt::red);
         paintpen.setWidth(5);
         painter->setPen(paintpen);
         painter->drawPoint(p1);
-        if (!points.empty())
-        {
-            QPoint p0 = points.back();
-            paintpen.setWidth(0);
-            painter->setPen(paintpen);
-            painter->drawLine(p0, p1);;
+//        if (!points.empty())
+//        {
+//            QPoint p0 = points.back();
+//            paintpen.setWidth(0);
+//            painter->setPen(paintpen);
+//            painter->drawLine(p0, p1);;
 
-        }
+//        }
         points.push_back(p1);
+        calGraph(iplImage, heapNode, p1.y(), p1.x());
+        drawPath(p1.x(), p1.y());
+        if (confirmedImage)
+        {
+            free(confirmedImage);
+        }
+        confirmedImage = new QImage(*qImage);
 
         imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     }
@@ -310,9 +336,10 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
         {
             enableMouseTrack(false);
             QPoint first = points[0];
-            points.push_back(first);
+            QPoint last = points.back();
             clearPainting();
-            redraw();
+            calGraph(iplImage, heapNode, first.y(), first.x());
+            drawPath(last.x(), last.y());
             imageLabel->setPixmap(QPixmap::fromImage(*qImage));
             closed = true;
         }
@@ -325,8 +352,8 @@ void ImageViewer::mouseMoveEvent(QMouseEvent * e)
     {
         return;
     }
-    qDebug() << "In mouseMoveEvent.";
-    qDebug() << "point size: " << points.size();
+//    qDebug() << "In mouseMoveEvent.";
+//    qDebug() << "point size: " << points.size();
     if(points.size() > 0)
     {
         QPoint last = points.back();
@@ -335,14 +362,15 @@ void ImageViewer::mouseMoveEvent(QMouseEvent * e)
         {
             return;
         }
-        qDebug() << "ex = " << e->x() << ", ey = " << e->y();
-        qDebug() << "x = " << p1.x() << ", y = " << p1.y();
+//        qDebug() << "ex = " << e->x() << ", ey = " << e->y();
+        qDebug() << "x = " << p1.x() << ", y = " << p1.y() << ", index = " << p1.x() + p1.y() * qImage->width() << ", total = " << qImage->width() * qImage->height();
         clearPainting();
-        redraw();
-        QPen paintpen(Qt::red);
-        paintpen.setWidth(0);
-        painter->setPen(paintpen);
-        painter->drawLine(last, p1);
+//        redraw();
+//        QPen paintpen(Qt::red);
+//        paintpen.setWidth(0);
+//        painter->setPen(paintpen);
+//        painter->drawLine(last, p1);
+        drawPath(p1.x(), p1.y());
         imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     }
 }
@@ -359,13 +387,16 @@ void ImageViewer::clearPainting()
 {
     free(qImage);
     free(painter);
-    qImage = new QImage(*originImage);
+    qImage = new QImage(*confirmedImage);
     painter  = new QPainter(qImage);
 }
 
 void ImageViewer::deselect()
 {
-    clearPainting();
+    free(qImage);
+    free(painter);
+    qImage = new QImage(*originImage);
+    painter  = new QPainter(qImage);
     points.clear();
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     enableMouseTrack(true);
@@ -387,4 +418,32 @@ void ImageViewer::undo()
     }
     redraw();
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+}
+
+cv::Mat ImageViewer::qimage_to_mat_cpy(QImage const &img, int format)
+{
+    return cv::Mat(img.height(), img.width(), format,
+                   const_cast<uchar*>(img.bits()),
+                   img.bytesPerLine()).clone();
+}
+
+void ImageViewer::drawPath(int x, int y)
+{
+    QPen paintpen(Qt::red);
+    paintpen.setWidth(0);
+    painter->setPen(paintpen);
+
+    x = std::min(x, qImage->width() - 1);
+    y = std::min(y, qImage->height() - 1);
+    qDebug() << "In drawPath: x = " << x << ", y = " << y << ", index = " << x + y * qImage->width() << ", total = " << qImage->width() * qImage->height();
+    int finalIndex = y * qImage->width() + x;
+    HeapNode * tempNode = &heapNode[finalIndex];
+    while (tempNode->GetPreNode())
+    {
+        HeapNode * parent = tempNode->GetPreNode();
+        QPoint p1(parent->GetColumn(), parent->GetRow());
+        QPoint p2(tempNode->GetColumn(), tempNode->GetRow());
+        painter->drawLine(p1, p2);
+        tempNode = parent;
+    }
 }
