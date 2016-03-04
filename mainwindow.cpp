@@ -61,22 +61,14 @@ void ImageScissor::open()
     QString fileName = QFileDialog::getOpenFileName(this,
                                     tr("Open File"), QDir::currentPath());
     if (!fileName.isEmpty()) {
-        qDebug() << "qImage: " << qImage;
-        qDebug() << "originImage: " << originImage;
-        qDebug() << "mask: " << mask;
-        qDebug() << "painter: " << painter;
-        qDebug() << "iplImage: " << iplImage;
-        qDebug() << "heepNode: " << heapNode;
         if (qImage != NULL)    free(qImage);
         if (originImage != NULL)    free(originImage);
         if (mask != NULL)    free(mask);
         if (painter != NULL)    free(painter);
-//        if (iplImage != NULL)    delete(iplImage);
-//        if (heapNode != NULL)    free(heapNode);
 
         qImage = new QImage(fileName);
         originImage = new QImage(fileName);
-        mask = new QImage(qImage->width(), qImage->height(), QImage::Format_ARGB32);
+
         if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
                                      tr("Cannot load %1.").arg(fileName));
@@ -111,8 +103,8 @@ void ImageScissor::open()
 
         enableMouseTrack(true);
 
-        iplImage = cvLoadImage(imageFile.c_str(), CV_LOAD_IMAGE_GRAYSCALE);
-//        iplImage = QImageToIplImage(qImage);
+//        iplImage = cvLoadImage(imageFile.c_str(), CV_LOAD_IMAGE_GRAYSCALE);
+        iplImage = QImageToIplImage(qImage);
         if (!iplImage)
         {
             qDebug() << "IplImage is NULL.";
@@ -157,34 +149,6 @@ void ImageScissor::save()
 
 void ImageScissor::saveMask()
 {
-//    std::set<MyQPoint> pointSet;
-//    int size = 0;
-//    for (int c = 0; c < contour.size(); c++)
-//    {
-//        std::vector<QPoint> cont = contour[c];
-//        for (int p = 0; p < cont.size(); p++)
-//        {
-//            size++;
-//            MyQPoint pnt(cont[p].x(), cont[p].y(), qImage->width());
-//            pointSet.insert(pnt);
-//        }
-//    }
-
-//    for (int y = 0; y < qImage->height(); y++)
-//    {
-//        bool tag = false;
-//        for (int x = 0; x < qImage->width(); x++)
-//        {
-//            MyQPoint pt(x, y, qImage->width());
-//            if (pointSet.find(pt) != pointSet.end())
-//            {
-//                MyQPoint p0(x, y, qImage->width());
-//                bool b0 = ()
-//            }
-//        }
-//    }
-//    qDebug() << "origin size is " << size << ", set size is " << pointSet.size();
-
     QPainterPath path;
     path.moveTo(points[0].x(), points[0].y());
     for (int c = 0; c < contour.size(); c++)
@@ -197,6 +161,9 @@ void ImageScissor::saveMask()
     }
     path.lineTo(points[0].x(), points[0].y());
     path.lineTo(points[0].x(), points[0].y());
+
+    mask = new QImage(originImage->width(), originImage->height(), QImage::Format_ARGB32);
+    mask->fill(QColor(255, 255, 255, 0));
     QPainter *maskPainter = new QPainter(mask);
     maskPainter->fillPath (path, QBrush (Qt::black));
 
@@ -259,7 +226,7 @@ void ImageScissor::about()
 {
     QMessageBox::about(this, tr("About Image Scissor"),
             tr("<p>The <b>Image Scissor</b> is a light-weight "
-               "edge manipulation software done by Lei ZHOU and Peng Xu. </p>"
+               "edge manipulation software done by Lei ZHOU and Peng XU. </p>"
                 ));
 }
 
@@ -517,6 +484,7 @@ void ImageScissor::deselect()
     painter  = new QPainter(qImage);
     points.clear();
     contour.clear();
+    qDebug() << "contour size is " << contour.size();
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     enableMouseTrack(true);
     closed = false;
@@ -603,7 +571,7 @@ void ImageScissor::addContour(int x, int y, std::vector<QPoint> &cont)
 //    qDebug() << "last is " << last.x() << ", " << last.y();
 }
 
-IplImage * QImageToIplImage(const QImage *qImage)
+IplImage * ImageScissor::QImageToIplImage(const QImage *qImage)
 {
     int width = qImage->width();
     int height = qImage->height();
