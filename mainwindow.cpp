@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 
 
-ImageViewer::ImageViewer()
+ImageScissor::ImageScissor()
 {
     imageLabel = new QLabel;
     imageLabel->setBackgroundRole(QPalette::Base);
@@ -13,6 +13,13 @@ ImageViewer::ImageViewer()
     scrollArea->setWidget(imageLabel);
     setCentralWidget(scrollArea);
 
+    qImage = NULL;
+    originImage = NULL;
+    mask = NULL;
+    iplImage = NULL;
+    heapNode = NULL;
+    painter = NULL;
+
     createActions();
     createMenus();
 
@@ -21,14 +28,14 @@ ImageViewer::ImageViewer()
 
 }
 
-void ImageViewer::enableMouseTrack(bool enable)
+void ImageScissor::enableMouseTrack(bool enable)
 {
     imageLabel->setMouseTracking(enable);
     scrollArea->setMouseTracking(enable);
     setMouseTracking(enable);
 }
 
-void ImageViewer::redraw()
+void ImageScissor::redraw()
 {
     QPen paintpen(Qt::red);
     paintpen.setWidth(5);
@@ -49,21 +56,26 @@ void ImageViewer::redraw()
     }
 }
 
-void ImageViewer::open()
+void ImageScissor::open()
 {
     QString fileName = QFileDialog::getOpenFileName(this,
                                     tr("Open File"), QDir::currentPath());
     if (!fileName.isEmpty()) {
-//        if (qImage)    free(qImage);
-//        if (originImage)    free(originImage);
-//        if (confirmedImage)    free(confirmedImage);
-//        if (painter)    free(painter);
-//        if (iplImage)    free(iplImage);
-//        if (heapNode)    free(heapNode);
+        qDebug() << "qImage: " << qImage;
+        qDebug() << "originImage: " << originImage;
+        qDebug() << "mask: " << mask;
+        qDebug() << "painter: " << painter;
+        qDebug() << "iplImage: " << iplImage;
+        qDebug() << "heepNode: " << heapNode;
+        if (qImage != NULL)    free(qImage);
+        if (originImage != NULL)    free(originImage);
+        if (mask != NULL)    free(mask);
+        if (painter != NULL)    free(painter);
+//        if (iplImage != NULL)    delete(iplImage);
+//        if (heapNode != NULL)    free(heapNode);
 
         qImage = new QImage(fileName);
         originImage = new QImage(fileName);
-        confirmedImage = new QImage(fileName);
         mask = new QImage(qImage->width(), qImage->height(), QImage::Format_ARGB32);
         if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
@@ -71,8 +83,10 @@ void ImageViewer::open()
             return;
         }
         painter = new QPainter(qImage);
+        deselect();
         imageLabel->setPixmap(QPixmap::fromImage(*qImage));
         scaleFactor = 1.0;
+        closed = false;
 
         printAct->setEnabled(true);
         saveAct->setEnabled(true);
@@ -86,14 +100,14 @@ void ImageViewer::open()
 
         imageFile = fileName.toStdString();
         imageMat = qimage_to_mat_cpy(*qImage, CV_8UC1);
-        for (int x = 0; x < imageMat.cols; x++)
-        {
-            for (int y = 0; y < imageMat.rows; y++)
-            {
-                cv::Vec3b intensity = imageMat.at<cv::Vec3b>(y, x);
+//        for (int x = 0; x < imageMat.cols; x++)
+//        {
+//            for (int y = 0; y < imageMat.rows; y++)
+//            {
+//                cv::Vec3b intensity = imageMat.at<cv::Vec3b>(y, x);
 //                qDebug() << x << ", " << y << ": " << intensity[0] << ", " << intensity[1] << ", " << intensity[2];
-            }
-        }
+//            }
+//        }
 
         enableMouseTrack(true);
 
@@ -112,7 +126,7 @@ void ImageViewer::open()
     }
 }
 
-void ImageViewer::print()
+void ImageScissor::print()
 {
     Q_ASSERT(imageLabel->pixmap());
 #ifndef QT_NO_PRINTER
@@ -128,7 +142,7 @@ void ImageViewer::print()
 #endif
 }
 
-void ImageViewer::save()
+void ImageScissor::save()
 {
     if (!qImage->isNull())
     {
@@ -141,7 +155,7 @@ void ImageViewer::save()
     }
 }
 
-void ImageViewer::saveMask()
+void ImageScissor::saveMask()
 {
 //    std::set<MyQPoint> pointSet;
 //    int size = 0;
@@ -215,23 +229,23 @@ void ImageViewer::saveMask()
     free(saveImage);
 }
 
-void ImageViewer::zoomIn()
+void ImageScissor::zoomIn()
 {
     scaleImage(1.25);
 }
 
-void ImageViewer::zoomOut()
+void ImageScissor::zoomOut()
 {
     scaleImage(0.8);
 }
 
-void ImageViewer::normalSize()
+void ImageScissor::normalSize()
 {
     imageLabel->adjustSize();
     scaleFactor = 1.0;
 }
 
-void ImageViewer::fitToWindow()
+void ImageScissor::fitToWindow()
 {
     bool fitToWindow = fitToWindowAct->isChecked();
     scrollArea->setWidgetResizable(fitToWindow);
@@ -241,24 +255,15 @@ void ImageViewer::fitToWindow()
     updateActions();
 }
 
-void ImageViewer::about()
+void ImageScissor::about()
 {
-    QMessageBox::about(this, tr("About Image Viewer"),
-            tr("<p>The <b>Image Viewer</b> example shows how to combine QLabel "
-               "and QScrollArea to display an image. QLabel is typically used "
-               "for displaying a text, but it can also display an image. "
-               "QScrollArea provides a scrolling view around another widget. "
-               "If the child widget exceeds the size of the frame, QScrollArea "
-               "automatically provides scroll bars. </p><p>The example "
-               "demonstrates how QLabel's ability to scale its contents "
-               "(QLabel::scaledContents), and QScrollArea's ability to "
-               "automatically resize its contents "
-               "(QScrollArea::widgetResizable), can be used to implement "
-               "zooming and scaling features. </p><p>In addition the example "
-               "shows how to use QPainter to print an image.</p>"));
+    QMessageBox::about(this, tr("About Image Scissor"),
+            tr("<p>The <b>Image Scissor</b> is a light-weight "
+               "edge manipulation software done by Lei ZHOU and Peng Xu. </p>"
+                ));
 }
 
-void ImageViewer::createActions()
+void ImageScissor::createActions()
 {
     openAct = new QAction(tr("&Open..."), this);
     openAct->setShortcut(tr("Ctrl+O"));
@@ -319,7 +324,7 @@ void ImageViewer::createActions()
     connect(aboutQtAct, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
 }
 
-void ImageViewer::createMenus()
+void ImageScissor::createMenus()
 {
     fileMenu = new QMenu(tr("&File"), this);
     fileMenu->addAction(openAct);
@@ -333,7 +338,7 @@ void ImageViewer::createMenus()
     viewMenu->addAction(zoomInAct);
     viewMenu->addAction(zoomOutAct);
     viewMenu->addAction(normalSizeAct);
-    viewMenu->addSeparator();
+//    viewMenu->addSeparator();
 //    viewMenu->addAction(fitToWindowAct);
 
     toolMenu = new QMenu(tr("&Tool"), this);
@@ -350,14 +355,14 @@ void ImageViewer::createMenus()
     menuBar()->addMenu(helpMenu);
 }
 
-void ImageViewer::updateActions()
+void ImageScissor::updateActions()
 {
     zoomInAct->setEnabled(!fitToWindowAct->isChecked());
     zoomOutAct->setEnabled(!fitToWindowAct->isChecked());
     normalSizeAct->setEnabled(!fitToWindowAct->isChecked());
 }
 
-void ImageViewer::scaleImage(double factor)
+void ImageScissor::scaleImage(double factor)
 {
     Q_ASSERT(imageLabel->pixmap());
     scaleFactor *= factor;
@@ -370,13 +375,13 @@ void ImageViewer::scaleImage(double factor)
     zoomOutAct->setEnabled(scaleFactor > 0.333);
 }
 
-void ImageViewer::adjustScrollBar(QScrollBar *scrollBar, double factor)
+void ImageScissor::adjustScrollBar(QScrollBar *scrollBar, double factor)
 {
     scrollBar->setValue(int(factor * scrollBar->value()
                             + ((factor - 1) * scrollBar->pageStep()/2)));
 }
 
-bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
+bool ImageScissor::mouseOnImage(QPoint & p, int x, int y)
 {
     p.setX((x + scrollArea->horizontalScrollBar()->value()) / scaleFactor);
     p.setY(((y - menuBar()->size().height()) + scrollArea->verticalScrollBar()->value()) / scaleFactor);
@@ -387,7 +392,7 @@ bool ImageViewer::mouseOnImage(QPoint & p, int x, int y)
     return true;
 }
 
-void ImageViewer:: mousePressEvent(QMouseEvent *e)
+void ImageScissor:: mousePressEvent(QMouseEvent *e)
 {
     if(qImage == NULL || imageFile.length() == 0 || closed)
     {
@@ -459,7 +464,7 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
     }
 }
 
-void ImageViewer::mouseMoveEvent(QMouseEvent * e)
+void ImageScissor::mouseMoveEvent(QMouseEvent * e)
 {
     if (closed)
     {
@@ -488,7 +493,7 @@ void ImageViewer::mouseMoveEvent(QMouseEvent * e)
     }
 }
 
-void ImageViewer::mouseDoubleClickEvent(QMouseEvent * e)
+void ImageScissor::mouseDoubleClickEvent(QMouseEvent * e)
 {
     if ( e->button() == Qt::LeftButton )
     {
@@ -496,7 +501,7 @@ void ImageViewer::mouseDoubleClickEvent(QMouseEvent * e)
     }
 }
 
-void ImageViewer::clearPainting()
+void ImageScissor::clearPainting()
 {
     free(qImage);
     free(painter);
@@ -504,7 +509,7 @@ void ImageViewer::clearPainting()
     painter  = new QPainter(qImage);
 }
 
-void ImageViewer::deselect()
+void ImageScissor::deselect()
 {
     free(qImage);
     free(painter);
@@ -518,7 +523,7 @@ void ImageViewer::deselect()
     undoAct->setEnabled(true);
 }
 
-void ImageViewer::undo()
+void ImageScissor::undo()
 {
     if (!points.empty())
     {
@@ -542,14 +547,14 @@ void ImageViewer::undo()
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
 }
 
-cv::Mat ImageViewer::qimage_to_mat_cpy(QImage const &img, int format)
+cv::Mat ImageScissor::qimage_to_mat_cpy(QImage const &img, int format)
 {
     return cv::Mat(img.height(), img.width(), format,
                    const_cast<uchar*>(img.bits()),
                    img.bytesPerLine()).clone();
 }
 
-void ImageViewer::drawPath(int x, int y)
+void ImageScissor::drawPath(int x, int y)
 {
     QPen paintpen(Qt::red);
     paintpen.setWidth(1);
@@ -574,7 +579,7 @@ void ImageViewer::drawPath(int x, int y)
     }
 }
 
-void ImageViewer::addContour(int x, int y, std::vector<QPoint> &cont)
+void ImageScissor::addContour(int x, int y, std::vector<QPoint> &cont)
 {
     x = std::min(x, qImage->width() - 1);
     y = std::min(y, qImage->height() - 1);

@@ -97,12 +97,12 @@ public:
 };
 
 
-class ImageViewer : public QMainWindow
+class ImageScissor : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    ImageViewer();
+    ImageScissor();
 
 private slots:
     void open();
@@ -167,7 +167,6 @@ private:
     cv::Mat imageMat;
     QImage *qImage;
     QImage *originImage;
-    QImage *confirmedImage;
     QImage *mask;
     bool closed = false;
     IplImage * iplImage;

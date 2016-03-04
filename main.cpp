@@ -5,7 +5,7 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    ImageViewer imageViewer;
+    ImageScissor imageViewer;
 #if defined(Q_OS_SYMBIAN)
     imageViewer.showMaximized();
 #else
