@@ -19,6 +19,7 @@ ImageScissor::ImageScissor()
     iplImage = NULL;
     heapNode = NULL;
     painter = NULL;
+    debugMode = false;
 
     createActions();
     createMenus();
@@ -68,6 +69,8 @@ void ImageScissor::open()
 
         qImage = new QImage(fileName);
         originImage = new QImage(fileName);
+        minPath = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
+        minPathCopy = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
 
         if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
@@ -75,6 +78,7 @@ void ImageScissor::open()
             return;
         }
         painter = new QPainter(qImage);
+        minPathPainter = new QPainter(minPath);
         deselect();
         imageLabel->setPixmap(QPixmap::fromImage(*qImage));
         scaleFactor = 1.0;
@@ -109,7 +113,7 @@ void ImageScissor::open()
         {
             qDebug() << "IplImage is NULL.";
         }
-        heapNode = new HeapNode[imageMat.rows * imageMat.cols + 1];
+        heapNode = new HeapNode[qImage->width() * qImage->height() + 1];
         if (!heapNode)
         {
             qDebug() << "Fail to alloct memory to heapnode.";
@@ -431,9 +435,177 @@ void ImageScissor:: mousePressEvent(QMouseEvent *e)
     }
 }
 
+void ImageScissor::keyPressEvent(QKeyEvent *event)
+{
+    if(event->key() == Qt::Key_1)
+    {
+        debugMode = false;
+        pixNode = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
+        pixNode->fill(QColor(0, 0, 0, 255));
+//        qDebug() << "width=" << minPath->width() << ", height=" << minPath->height();
+        for ( int row = 0; row < originImage->height(); ++row )
+        {
+            for ( int col = 0; col < originImage->width(); ++col )
+            {
+                int index = row * originImage->width() + col;
+                HeapNode *node = &heapNode[index - 1];
+                QRgb rgb( originImage->pixel( col, row ) );
+                pixNode->setPixel(col * 3 + 1, row * 3 + 1, rgb);
+            }
+        }
+
+        imageLabel->setPixmap(QPixmap::fromImage(*pixNode));
+//        QLabel *newLabel = new QLabel;
+//        newLabel->setPixmap(QPixmap::fromImage(*pixNode));
+//        newLabel->show();
+    }
+
+    else if(event->key() == Qt::Key_2)
+    {
+        debugMode = false;
+        costGraph = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
+        costGraph->fill(QColor(0, 0, 0, 255));
+        for ( int row = 0; row < originImage->height(); ++row )
+        {
+            for ( int col = 0; col < originImage->width(); ++col )
+            {
+
+                int index = row * originImage->width() + col;
+//                qDebug() << "col=" << col << ", row=" << row << ", index=" << index;
+                HeapNode *node = &heapNode[index];
+                QRgb rgb( originImage->pixel( col, row ) );
+                costGraph->setPixel(col * 3 + 1, row * 3 + 1, rgb);
+
+//                qDebug() << "cost0: " << node->LinkCost[0];
+//                qDebug() << "cost4: " << node->LinkCost[4];
+                int intensity = std::min((int) (node->LinkCost[0] * 0.4), 255);
+                QRgb rgb1(intensity);
+                costGraph->setPixel(col * 3, row * 3, rgb1);
+                intensity = std::min((int) (node->LinkCost[1] * 0.4), 255);
+                QRgb rgb2(intensity);
+                costGraph->setPixel(col * 3, row * 3 + 1, rgb2);
+                intensity = std::min((int) (node->LinkCost[2] * 0.4), 255);
+                QRgb rgb3(intensity);
+                costGraph->setPixel(col * 3, row * 3 + 2, rgb3);
+                intensity = std::min((int) (node->LinkCost[3] * 0.4), 255);
+                QRgb rgb4(intensity);
+                costGraph->setPixel(col * 3 + 1, row * 3 + 2, rgb4);
+                intensity = std::min((int) (node->LinkCost[4] * 0.4), 255);
+                QRgb rgb5(intensity);
+                costGraph->setPixel(col * 3 + 2, row * 3 + 2, rgb5);
+                intensity = std::min((int) (node->LinkCost[5] * 0.4), 255);
+                QRgb rgb6(intensity);
+                costGraph->setPixel(col * 3 + 2, row * 3 + 1, rgb6);
+                intensity = std::min((int) (node->LinkCost[6] * 0.4), 255);
+                QRgb rgb7(intensity);
+                costGraph->setPixel(col * 3 + 2, row * 3, rgb7);
+                intensity = std::min((int) (node->LinkCost[7] * 0.4), 255);
+                QRgb rgb8(intensity);
+                costGraph->setPixel(col * 3 + 1, row * 3, rgb8);
+
+            }
+        }
+
+//        QLabel *newLabel = new QLabel;
+//        newLabel->setPixmap(QPixmap::fromImage(*costGraph));
+//        newLabel->show();
+        imageLabel->setPixmap(QPixmap::fromImage(*costGraph));
+    }
+
+    else if(event->key() == Qt::Key_3)
+    {
+        debugMode = false;
+        pathTree = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
+        pathTree->fill(QColor(0, 0, 0, 255));
+        for ( int row = 0; row < originImage->height(); ++row )
+        {
+            for ( int col = 0; col < originImage->width(); ++col )
+            {
+                pathTree->setPixel(col * 3 + 1, row * 3 + 1, QColor(0, 0, 255, 255).rgb());
+                int index = row * originImage->width() + col;
+                HeapNode *node = &heapNode[index];
+                HeapNode *parent = node->GetPreNode();
+                if (parent == NULL) continue;
+                int dx = parent->GetColumn() - node->GetColumn();
+                int dy = parent->GetRow() - node->GetRow();
+//                qDebug() << "col=" << col << ", row=" << row << ", index=" << index;
+//                qDebug() << "dx=" << dx << ", dy=" << dy;
+                pathTree->setPixel(col * 3 + 1 + dx, row * 3 + 1 + dy, QColor(255, 255, 128, 255).rgb());
+                pathTree->setPixel(parent->GetColumn() * 3 + 1 - dx, parent->GetRow() * 3 + 1 - dy, QColor(255, 255, 0, 255).rgb());
+
+            }
+        }
+
+//        QLabel *newLabel = new QLabel;
+//        newLabel->setPixmap(QPixmap::fromImage(*pathTree));
+//        newLabel->show();
+        imageLabel->setPixmap(QPixmap::fromImage(*pathTree));
+    }
+
+    else if(event->key() == Qt::Key_4)
+    {
+        minPath = new QImage(originImage->width() * 3, originImage->height() * 3, QImage::Format_ARGB32);
+        minPath->fill(QColor(0, 0, 0, 255));
+        for ( int row = 0; row < originImage->height(); ++row )
+        {
+            for ( int col = 0; col < originImage->width(); ++col )
+            {
+                minPath->setPixel(col * 3 + 1, row * 3 + 1, QColor(0, 0, 255, 255).rgb());
+                int index = row * originImage->width() + col;
+                HeapNode *node = &heapNode[index];
+                HeapNode *parent = node->GetPreNode();
+                if (parent == NULL) continue;
+                int dx = parent->GetColumn() - node->GetColumn();
+                int dy = parent->GetRow() - node->GetRow();
+//                qDebug() << "col=" << col << ", row=" << row << ", index=" << index;
+//                qDebug() << "dx=" << dx << ", dy=" << dy;
+                minPath->setPixel(col * 3 + 1 + dx, row * 3 + 1 + dy, QColor(255, 255, 128, 255).rgb());
+                minPath->setPixel(parent->GetColumn() * 3 + 1 - dx, parent->GetRow() * 3 + 1 - dy, QColor(255, 255, 0, 255).rgb());
+
+            }
+        }
+
+        debugMode = true;
+        enableMouseTrack(true);
+
+        minPathCopy = new QImage(*minPath);
+        QPen paintpen(Qt::red);
+        paintpen.setWidth(5);
+        QPainter* temp_painter = new QPainter(minPath);
+        temp_painter->setPen(paintpen);
+        temp_painter->drawPoint(points.back().x() * 3 + 1, points.back().y() * 3 + 1);
+
+//        QLabel *newLabel = new QLabel;
+//        newLabel->setPixmap(QPixmap::fromImage(*pathTree));
+//        newLabel->show();
+        imageLabel->setPixmap(QPixmap::fromImage(*minPath));
+        debugMode = true;
+        enableMouseTrack(true);
+    }
+    else if(event->key() == Qt::Key_5)
+    {
+        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+        debugMode = false;
+        if (closed) {
+            enableMouseTrack(false);
+        }
+    }
+    else if(event->key() == Qt::Key_Escape)
+    {
+        enableMouseTrack(false);
+        clearPainting();
+        redraw();
+        closed = true;
+        if (!debugMode) {
+            imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+        }
+    }
+
+}
+
 void ImageScissor::mouseMoveEvent(QMouseEvent * e)
 {
-    if (closed)
+    if (closed && !debugMode)
     {
         return;
     }
@@ -448,15 +620,22 @@ void ImageScissor::mouseMoveEvent(QMouseEvent * e)
             return;
         }
 //        qDebug() << "ex = " << e->x() << ", ey = " << e->y();
-//        qDebug() << "x = " << p1.x() << ", y = " << p1.y() << ", index = " << p1.x() + p1.y() * qImage->width() << ", total = " << qImage->width() * qImage->height();
+        qDebug() << "x = " << p1.x() << ", y = " << p1.y() << ", index = " << p1.x() + p1.y() * qImage->width() << ", total = " << qImage->width() * qImage->height();
         clearPainting();
-        redraw();
+        if (!debugMode)
+        {
+            redraw();
+        }
 //        QPen paintpen(Qt::red);
 //        paintpen.setWidth(0);
 //        painter->setPen(paintpen);
 //        painter->drawLine(last, p1);
         drawPath(p1.x(), p1.y());
-        imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+        if (!debugMode) {
+            imageLabel->setPixmap(QPixmap::fromImage(*qImage));
+        } else {
+            imageLabel->setPixmap(QPixmap::fromImage(*minPath));
+        }
     }
 }
 
@@ -470,10 +649,20 @@ void ImageScissor::mouseDoubleClickEvent(QMouseEvent * e)
 
 void ImageScissor::clearPainting()
 {
-    free(qImage);
-    free(painter);
-    qImage = new QImage(*originImage);
-    painter  = new QPainter(qImage);
+    if (!debugMode)
+    {
+        free(qImage);
+        free(painter);
+        qImage = new QImage(*originImage);
+        painter  = new QPainter(qImage);
+    }
+    else
+    {
+        free(minPath);
+        free(minPathPainter);
+        minPath = new QImage(*minPathCopy);
+        minPathPainter  = new QPainter(minPath);
+    }
 }
 
 void ImageScissor::deselect()
@@ -488,6 +677,7 @@ void ImageScissor::deselect()
     imageLabel->setPixmap(QPixmap::fromImage(*qImage));
     enableMouseTrack(true);
     closed = false;
+    debugMode = false;
     undoAct->setEnabled(true);
 }
 
@@ -527,6 +717,8 @@ void ImageScissor::drawPath(int x, int y)
     QPen paintpen(Qt::red);
     paintpen.setWidth(1);
     painter->setPen(paintpen);
+    minPathPainter->setPen(paintpen);
+
 
     x = std::min(x, qImage->width() - 1);
     y = std::min(y, qImage->height() - 1);
@@ -542,7 +734,13 @@ void ImageScissor::drawPath(int x, int y)
         HeapNode * parent = tempNode->GetPreNode();
         QPoint p1(parent->GetColumn(), parent->GetRow());
         QPoint p2(tempNode->GetColumn(), tempNode->GetRow());
-        painter->drawLine(p1, p2);
+        if (!debugMode) {
+            painter->drawLine(p1, p2);
+        } else {
+            QPoint p11(parent->GetColumn() * 3 + 1, parent->GetRow() * 3 + 1);
+            QPoint p22(tempNode->GetColumn() * 3 + 1, tempNode->GetRow() * 3 + 1);
+            minPathPainter->drawLine(p11, p22);
+        }
         tempNode = parent;
     }
 }
@@ -589,3 +787,4 @@ IplImage * ImageScissor::QImageToIplImage(const QImage *qImage)
     }
     return iplImage;
 }
+

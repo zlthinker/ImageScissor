@@ -79,7 +79,6 @@ bool is_row_legal(int this_row, int row)
 		return false;
 }
 
-
 double Calc_d_Link(IplImage *img,int this_row, int this_column, double *ls)
 {
     if (img == NULL) {cout << "image is empty";exit(1);}
@@ -191,6 +190,7 @@ double Calc_d_Link(IplImage *img,int this_row, int this_column, double *ls)
 
 
 
+
 /*
 int IntCmp(const void *pA, const void *pB)
 {
@@ -203,7 +203,7 @@ int A, B;
     return 1; 
 }
 */
-int calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y)
+int ImageScissor::calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y)
 {
     if (img == NULL) { cout << "image open error"; return 1;}
     int length = img->width;
@@ -456,3 +456,5 @@ int calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y)
 
      delete theHeap;
 }
+
+

@@ -47,6 +47,7 @@
 #include <QPrinter>
 #include "opencv2/opencv.hpp"
 #include "fibheap.h"
+#include <algorithm>
 
 class QAction;
 class QLabel;
@@ -57,14 +58,15 @@ class QScrollBar;
 
 class HeapNode : public FibHeapNode
 {
-    double LinkCost[8];
-    int State;
-    double Key;
-    HeapNode *PrevNode;
-    int column, row;
+
 
 
 public:
+      double LinkCost[8];
+      int State;
+      double Key;
+      HeapNode *PrevNode;
+      int column, row;
 
       HeapNode() : FibHeapNode() { Key = 0; };
 
@@ -127,6 +129,7 @@ private:
     void mouseDoubleClickEvent(QMouseEvent * e);
     bool mouseOnImage(QPoint & pt, int x, int y);
     void mouseMoveEvent(QMouseEvent * e);
+    void keyPressEvent(QKeyEvent *);
     void clearPainting();
     void enableMouseTrack(bool enable);
     void redraw();
@@ -134,6 +137,7 @@ private:
     void drawPath(int x, int y);
     void addContour(int x, int y, std::vector<QPoint> & cont);
     IplImage * QImageToIplImage(const QImage *qImage);
+    int calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y);
 
 
     QLabel *imageLabel;
@@ -172,8 +176,15 @@ private:
     IplImage * iplImage;
     HeapNode * heapNode;
     std::vector<QPoint> points;
+    QImage *pixNode;
+    QImage *minPath;
+    QImage *minPathCopy;
+    QImage *costGraph;
+    QImage *pathTree;
+    bool debugMode;
 
     QPainter *painter;
+    QPainter *minPathPainter;
     std::vector<std::vector<QPoint> > contour;
 };
 
