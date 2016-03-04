@@ -82,61 +82,114 @@ bool is_row_legal(int this_row, int row)
 
 double Calc_d_Link(IplImage *img,int this_row, int this_column, double *ls)
 {
-	if (img == NULL) {cout << "image is empty";exit(1);}
-	int length = img->width;
-	int width = img->height;
+    if (img == NULL) {cout << "image is empty";exit(1);}
+    int length = img->width;
+    int width = img->height;
+    int n_channel = img->nChannels;
+    double ls_rgb[3][8];
+    memset(ls_rgb, 0, 3*8*sizeof(double));
+    uchar *data = (uchar *)img->imageData;
+    int step = img->widthStep/sizeof(uchar);
+    double max = 0.0;
+    double sum = 0.0;
+    if (is_column_legal(this_column-1,length) && is_row_legal(this_row-1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][0] = abs(data[this_row*step+n_channel*(this_column-1)+k]-data[(this_row-1)*step+n_channel*this_column+k])/sqrt(2);
+            sum += 	ls_rgb[k][0]*ls_rgb[k][0];
+        }
+        ls[0] = sqrt(sum/3.0);
+        max = (max < ls[0])?ls[0]:max;
+    }
 
-	uchar *data = (uchar *)img->imageData;
-	int step = img->widthStep/sizeof(uchar);  
-	double max = 0.0;
-	if (is_column_legal(this_column-1,length) && is_row_legal(this_row-1,width))
-	{
-		ls[0] = abs(data[this_row*step+this_column-1]-data[(this_row-1)*step+this_column])/sqrt(2);
-		max = (max < ls[0])?ls[0]:max;
-	}
+    if (is_column_legal(this_column-1,length) && is_row_legal(this_row+1,width) && is_row_legal(this_row-1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][1] = abs(data[(this_row-1)*step+n_channel*(this_column-1)+k]+data[(this_row-1)*step+n_channel*this_column+k]-data[(this_row+1)*step+n_channel*(this_column-1)+k]-data[(this_row+1)*step+n_channel*this_column+k])/4.0;
+            sum += ls_rgb[k][1]*ls_rgb[k][1];
+        }
+        ls[1] = sqrt(sum/3.0);
+        max = (max < ls[1])?ls[1]:max;
+    }
+    if (is_column_legal(this_column-1,length) && is_row_legal(this_row+1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][2] = abs(data[this_row*step+n_channel*(this_column-1)+k]-data[(this_row+1)*step+n_channel*this_column+k])/sqrt(2);
+            sum += ls_rgb[k][2]*ls_rgb[k][2];
+        }
+        ls[2] = sqrt(sum/3.0);
+        max = (max < ls[2])?ls[2]:max;
+    }
 
-	if (is_column_legal(this_column-1,length) && is_row_legal(this_row+1,width) && is_row_legal(this_row-1,width))
-	{
-		ls[1] = abs(data[(this_row-1)*step+this_column-1]+data[(this_row-1)*step+this_column]-data[(this_row+1)*step+this_column-1]-data[(this_row+1)*step+this_column])/4.0;
-		max = (max < ls[1])?ls[1]:max;
-	}
-	if (is_column_legal(this_column-1,length) && is_row_legal(this_row+1,width))
-	{
-		ls[2] = abs(data[this_row*step+this_column-1]-data[(this_row+1)*step+this_column])/sqrt(2);
-		max = (max < ls[2])?ls[2]:max;
-	}
+    if (is_column_legal(this_column-1,length) && is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][3] = abs(data[(this_row+1)*step+n_channel*(this_column-1)+k]+data[this_row*step+n_channel*(this_column-1)+k]-data[(this_row+1)*step+n_channel*(this_column+1)+k]-data[this_row*step+n_channel*(this_column+1)+k])/4.0;
+            sum += ls_rgb[k][3]*ls_rgb[k][3];
+        }
+        ls[3] = sqrt(sum/3.0);
+        max = (max < ls[3])?ls[3]:max;
+    }
 
-	if (is_column_legal(this_column-1,length) && is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width))
-	{
-		ls[3] = abs(data[(this_row+1)*step+this_column-1]+data[this_row*step+this_column-1]-data[(this_row+1)*step+this_column+1]-data[this_row*step+this_column+1])/4.0;
-		max = (max < ls[3])?ls[3]:max;
-	}
+    if (is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][4] = abs(data[this_row*step+n_channel*(this_column+1)+k]-data[(this_row+1)*step+n_channel*this_column+k])/sqrt(2);
+            sum += ls_rgb[k][4]*ls_rgb[k][4];
+        }
+        ls[4] = sqrt(sum/3.0);
+        max = (max < ls[4])?ls[4]:max;
+    }
+    if (is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width) && is_row_legal(this_row-1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][5] = abs(data[(this_row-1)*step+n_channel*(this_column+1)+k]+data[(this_row-1)*step+n_channel*this_column+k]-data[(this_row+1)*step+n_channel*(this_column+1)+k]-data[(this_row+1)*step+n_channel*this_column+k])/4.0;
+            sum += ls_rgb[k][5]*ls_rgb[k][5];
+        }
+        ls[5] = sqrt(sum/3.0);
 
-	if (is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width))
-	{
-		ls[4] = abs(data[this_row*step+this_column+1]-data[(this_row+1)*step+this_column])/sqrt(2);
-		max = (max < ls[4])?ls[4]:max;
-	}
-	if (is_column_legal(this_column+1,length) && is_row_legal(this_row+1,width) && is_row_legal(this_row-1,width))
-	{
-		ls[5] = abs(data[(this_row-1)*step+this_column+1]+data[(this_row-1)*step+this_column]-data[(this_row+1)*step+this_column+1]-data[(this_row+1)*step+this_column])/4.0;
-		max = (max < ls[5])?ls[5]:max;
-	}
-	if (is_column_legal(this_column+1,length) && is_row_legal(this_row-1,width))
-	{	
-		ls[6] = abs(data[this_row*step+this_column+1]-data[(this_row-1)*step+this_column])/sqrt(2);
-		max = (max < ls[6])?ls[6]:max;
-	}
+        max = (max < ls[5])?ls[5]:max;
+    }
+    if (is_column_legal(this_column+1,length) && is_row_legal(this_row-1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][6] = abs(data[this_row*step+n_channel*(this_column+1)+k]-data[(this_row-1)*step+n_channel*this_column+k])/sqrt(2);
+            sum += ls_rgb[k][6]*ls_rgb[k][6];
+        }
+        ls[6] = sqrt(sum/3.0);
 
-	if (is_column_legal(this_column-1,length) && is_column_legal(this_column+1,length) && is_row_legal(this_row-1,width))
-	{
-		ls[7] = abs(data[(this_row-1)*step+this_column-1]+data[this_row*step+this_column-1]-data[(this_row-1)*step+this_column+1]-data[this_row*step+this_column+1])/4.0;
-		max = (max < ls[7])?ls[7]:max;
-	}
-	return max;
+        max = (max < ls[6])?ls[6]:max;
+    }
 
-	
+    if (is_column_legal(this_column-1,length) && is_column_legal(this_column+1,length) && is_row_legal(this_row-1,width))
+    {
+        sum = 0;
+        for ( int k = 0; k < 3; k++ )
+        {
+            ls_rgb[k][7] = abs(data[(this_row-1)*step+n_channel*(this_column-1)+k]+data[this_row*step+n_channel*(this_column-1)+k]-data[(this_row-1)*step+n_channel*(this_column+1)+k]-data[this_row*step+n_channel*(this_column+1)+k])/4.0;
+            sum += ls_rgb[k][7]*ls_rgb[k][7];
+        }
+        ls[7] = sqrt(sum/3.0);
+        max = (max < ls[7])?ls[7]:max;
+    }
+    return max;
 }
+
+
 
 /*
 int IntCmp(const void *pA, const void *pB)

@@ -115,6 +115,7 @@ private slots:
     void save();
     void deselect();
     void undo();
+    void saveMask();
 
 private:
     void createActions();
@@ -132,6 +133,8 @@ private:
     cv::Mat qimage_to_mat_cpy(QImage const &img, int format);
     void drawPath(int x, int y);
     void addContour(int x, int y, std::vector<QPoint> & cont);
+    IplImage * QImageToIplImage(const QImage *qImage);
+
 
     QLabel *imageLabel;
     QScrollArea *scrollArea;
@@ -144,6 +147,7 @@ private:
     QAction *openAct;
     QAction *printAct;
     QAction *saveAct;
+    QAction *saveMaskAct;
     QAction *exitAct;
     QAction *zoomInAct;
     QAction *zoomOutAct;
@@ -164,6 +168,7 @@ private:
     QImage *qImage;
     QImage *originImage;
     QImage *confirmedImage;
+    QImage *mask;
     bool closed = false;
     IplImage * iplImage;
     HeapNode * heapNode;
@@ -173,6 +178,18 @@ private:
     std::vector<std::vector<QPoint> > contour;
 };
 
+class MyQPoint : QPoint
+{
+public:
+    MyQPoint(int x, int y, int width) : QPoint(x, y) {this->width = width;}
+
+    bool operator < (const MyQPoint & point) const
+    {
+        return (this->y() * width + this->x()) < (point.y() * point.width + point.x());
+    }
+
+    int width;
+};
 
 int calGraph(IplImage * img, HeapNode * A, int seed_x, int seed_y);
 

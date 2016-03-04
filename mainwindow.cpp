@@ -64,6 +64,7 @@ void ImageViewer::open()
         qImage = new QImage(fileName);
         originImage = new QImage(fileName);
         confirmedImage = new QImage(fileName);
+        mask = new QImage(qImage->width(), qImage->height(), QImage::Format_ARGB32);
         if (qImage->isNull()) {
             QMessageBox::information(this, tr("Image Viewer"),
                                      tr("Cannot load %1.").arg(fileName));
@@ -97,6 +98,7 @@ void ImageViewer::open()
         enableMouseTrack(true);
 
         iplImage = cvLoadImage(imageFile.c_str(), CV_LOAD_IMAGE_GRAYSCALE);
+//        iplImage = QImageToIplImage(qImage);
         if (!iplImage)
         {
             qDebug() << "IplImage is NULL.";
@@ -137,6 +139,80 @@ void ImageViewer::save()
             qDebug() << "Fail to save " << fileName << "\n";
         }
     }
+}
+
+void ImageViewer::saveMask()
+{
+//    std::set<MyQPoint> pointSet;
+//    int size = 0;
+//    for (int c = 0; c < contour.size(); c++)
+//    {
+//        std::vector<QPoint> cont = contour[c];
+//        for (int p = 0; p < cont.size(); p++)
+//        {
+//            size++;
+//            MyQPoint pnt(cont[p].x(), cont[p].y(), qImage->width());
+//            pointSet.insert(pnt);
+//        }
+//    }
+
+//    for (int y = 0; y < qImage->height(); y++)
+//    {
+//        bool tag = false;
+//        for (int x = 0; x < qImage->width(); x++)
+//        {
+//            MyQPoint pt(x, y, qImage->width());
+//            if (pointSet.find(pt) != pointSet.end())
+//            {
+//                MyQPoint p0(x, y, qImage->width());
+//                bool b0 = ()
+//            }
+//        }
+//    }
+//    qDebug() << "origin size is " << size << ", set size is " << pointSet.size();
+
+    QPainterPath path;
+    path.moveTo(points[0].x(), points[0].y());
+    for (int c = 0; c < contour.size(); c++)
+    {
+        std::vector<QPoint> cont = contour[c];
+        for (int p = 0; p < cont.size(); p++)
+        {
+            path.lineTo(cont[p].x(), cont[p].y());
+        }
+    }
+    path.lineTo(points[0].x(), points[0].y());
+    path.lineTo(points[0].x(), points[0].y());
+    QPainter *maskPainter = new QPainter(mask);
+    maskPainter->fillPath (path, QBrush (Qt::black));
+
+
+    QImage* saveImage = new QImage(*originImage);
+    *saveImage = saveImage->convertToFormat(QImage::Format_ARGB32);
+    for ( int row = 0; row < mask->height(); ++row )
+    {
+        for ( int col = 0; col < mask->width(); ++col )
+        {
+            QRgb rgb( mask->pixel( col, row ) );
+//            qDebug() << "alpha: " << clr.alpha() << ", R:" << clr.red() << ", G:" << clr.green() << ", B:" << clr.blue();
+            if (qAlpha(rgb) < 128)
+            {
+                saveImage->setPixel(col, row, QColor(255, 255, 255, 0).rgba());
+            }
+        }
+    }
+    imageLabel->setPixmap(QPixmap::fromImage(*saveImage));
+
+    if (!saveImage->isNull())
+    {
+        QString fileName = QFileDialog::getSaveFileName(this,
+                                        tr("Save as ..."), QDir::currentPath(), tr("Images (*.png *.xpm *.jpg)"));
+        if(!saveImage->save(fileName))
+        {
+            qDebug() << "Fail to save " << fileName << "\n";
+        }
+    }
+    free(saveImage);
 }
 
 void ImageViewer::zoomIn()
@@ -193,10 +269,14 @@ void ImageViewer::createActions()
     printAct->setEnabled(false);
     connect(printAct, SIGNAL(triggered()), this, SLOT(print()));
 
-    saveAct = new QAction(tr("&Save..."), this);
+    saveAct = new QAction(tr("&Save Contour..."), this);
     saveAct->setShortcut(tr("Ctrl+S"));
     saveAct->setEnabled(false);
     connect(saveAct, SIGNAL(triggered()), this, SLOT(save()));
+
+    saveMaskAct = new QAction(tr("&Save Mask..."), this);
+    saveMaskAct->setEnabled(false);
+    connect(saveMaskAct, SIGNAL(triggered()), this, SLOT(saveMask()));
 
     exitAct = new QAction(tr("E&xit"), this);
     exitAct->setShortcut(tr("Ctrl+Q"));
@@ -245,6 +325,7 @@ void ImageViewer::createMenus()
     fileMenu->addAction(openAct);
     fileMenu->addAction(printAct);
     fileMenu->addAction(saveAct);
+    fileMenu->addAction(saveMaskAct);
     fileMenu->addSeparator();
     fileMenu->addAction(exitAct);
 
@@ -253,7 +334,7 @@ void ImageViewer::createMenus()
     viewMenu->addAction(zoomOutAct);
     viewMenu->addAction(normalSizeAct);
     viewMenu->addSeparator();
-    viewMenu->addAction(fitToWindowAct);
+//    viewMenu->addAction(fitToWindowAct);
 
     toolMenu = new QMenu(tr("&Tool"), this);
     toolMenu->addAction(deselectAct);
@@ -372,6 +453,7 @@ void ImageViewer:: mousePressEvent(QMouseEvent *e)
             imageLabel->setPixmap(QPixmap::fromImage(*qImage));
             closed = true;
             undoAct->setEnabled(false);
+            saveMaskAct->setEnabled(true);
             qDebug() << "Contour is closed, point size is " << points.size() << ", contour size is " << contour.size();
         }
     }
@@ -514,4 +596,23 @@ void ImageViewer::addContour(int x, int y, std::vector<QPoint> &cont)
 //    QPoint last = cont.back();
 //    qDebug() << "first is " << first.x() << ", " << first.y();
 //    qDebug() << "last is " << last.x() << ", " << last.y();
+}
+
+IplImage * QImageToIplImage(const QImage *qImage)
+{
+    int width = qImage->width();
+    int height = qImage->height();
+    CvSize size;//(width,height);
+    size.width = width;
+    size.height = height;
+    IplImage *iplImage = cvCreateImage(size, IPL_DEPTH_8U, 3);
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            QRgb rgb = qImage->pixel(x, y);
+            cvSet2D(iplImage, y, x, CV_RGB(qRed(rgb), qGreen(rgb), qBlue(rgb)));
+        }
+    }
+    return iplImage;
 }
